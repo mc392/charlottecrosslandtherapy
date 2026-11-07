@@ -67,12 +67,12 @@
   function Vine(o) {
     /* o: svg, box, waypoints(W,H,narrow,rect), style, seed, lead (0-1 of viewport), flower */
     var samples = [], isLoop = [], vy = [], cum = [], total = 0, chunks = [], leaves = [], flower = null, tip = null;
-    var lastDrawn = -1, lastW = 0;
+    var lastDrawn = -1, lastW = 0, lastH = 0;
 
     function build() {
       var W = o.box.clientWidth, H = o.box.offsetHeight;
       if (!W || !H) return;
-      lastW = W;
+      lastW = W; lastH = H;
       var rect = o.box.getBoundingClientRect();
       var narrow = W < 600, st = o.style, rand = seeded(o.seed);
       o.svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
@@ -216,7 +216,7 @@
     build();
     return {
       build: build, update: update,
-      resized: function () { return o.box.clientWidth !== lastW; }
+      resized: function () { return o.box.clientWidth !== lastW || o.box.offsetHeight !== lastH; }
     };
   }
 
@@ -320,10 +320,17 @@
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(rebuildAll);
     window.addEventListener('load', rebuildAll);
     var rt;
-    window.addEventListener('resize', function () {
+    var rebuildIfResized = function () {
       if (!vines.some(function (v) { return v.resized(); })) return;   // ignore phone toolbar show/hide
       clearTimeout(rt); rt = setTimeout(rebuildAll, 150);
-    });
+    };
+    window.addEventListener('resize', rebuildIfResized);
+    /* If a section changes height after the vine is drawn (e.g. phone browsers settling their
+       screen size after load), redraw it, otherwise the vine is squashed and falls behind the scroll */
+    if ('ResizeObserver' in window) {
+      var ro = new ResizeObserver(rebuildIfResized);
+      [welcomeBox, mainEl].forEach(function (el) { if (el) ro.observe(el); });
+    }
     /* Opening FAQ answers changes the page height, so the background vine is re-laid out */
     document.querySelectorAll('details').forEach(function (d) {
       d.addEventListener('toggle', function () { clearTimeout(rt); rt = setTimeout(rebuildAll, 120); });
